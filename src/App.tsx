@@ -11,8 +11,11 @@ import { PreviewFrame } from './components/builder/PreviewFrame';
 import { PublicGuestView } from './components/public/PublicGuestView';
 import { ShareModal } from './components/builder/ShareModal';
 import { AdminSiteManagerModal } from './components/admin/AdminSiteManagerModal';
+import { AdminRsvpDashboardModal } from './components/admin/AdminRsvpDashboardModal';
+import { AdminLoginModal } from './components/admin/AdminLoginModal';
+import { AdminSecurityModal } from './components/admin/AdminSecurityModal';
 import { SacredCrossIcon } from './components/common/DecorativeIcons';
-import { Eye, Edit3, Share2, Globe, Shield, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, Edit3, Share2, Globe, Shield, CheckCircle2, AlertCircle, Heart, LogOut, Key } from 'lucide-react';
 
 const STORAGE_KEY_SITES = 'blessed_sites_v2';
 
@@ -104,7 +107,34 @@ export default function App() {
     return activeSite;
   }, [sites, currentUrlParams, activeSite]);
 
-  const isGuestMode = currentUrlParams.get('view') === 'guest';
+  // Admin Authentication Credentials & Session
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    try {
+      return (
+        localStorage.getItem('blessed_admin_session') === 'true' ||
+        sessionStorage.getItem('blessed_admin_session') === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const [adminCreds, setAdminCreds] = useState<{ username: string; passwordHash: string }>(() => {
+    try {
+      const saved = localStorage.getItem('blessed_admin_creds');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Fallback
+    }
+    return { username: 'admin', passwordHash: 'admin123' };
+  });
+
+  const viewParam = currentUrlParams.get('view');
+  const isExplicitAdmin = viewParam === 'admin';
+  // Guest mode is active if:
+  // 1) Explicitly viewing as guest (?view=guest)
+  // 2) User is not logged in as admin AND not explicitly on ?view=admin
+  const isGuestMode = viewParam === 'guest' || (!isAdminLoggedIn && !isExplicitAdmin);
 
   // Mobile layout tab: 'editor' vs 'preview'
   const [mobileActiveView, setMobileActiveView] = useState<'editor' | 'preview'>('preview');
@@ -112,6 +142,31 @@ export default function App() {
   // Modals
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isAdminSiteModalOpen, setIsAdminSiteModalOpen] = useState(false);
+  const [isAdminRsvpModalOpen, setIsAdminRsvpModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isAdminSecurityModalOpen, setIsAdminSecurityModalOpen] = useState(false);
+
+  const handleUpdateAdminCreds = (newUsername: string, newPassword: string) => {
+    const updated = { username: newUsername, passwordHash: newPassword };
+    setAdminCreds(updated);
+    try {
+      localStorage.setItem('blessed_admin_creds', JSON.stringify(updated));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem('blessed_admin_session');
+    sessionStorage.removeItem('blessed_admin_session');
+    setIsAdminLoggedIn(false);
+  };
+
+  // Total RSVPs across all sites
+  const totalAllRsvpsCount = useMemo(
+    () => sites.reduce((sum, s) => sum + s.rsvps.length, 0),
+    [sites]
+  );
 
   // Update active site data from Builder
   const handleUpdateActiveSiteData = (updatedData: InvitationData) => {
@@ -194,6 +249,29 @@ export default function App() {
     }
   };
 
+  // Admin: Delete specific RSVP
+  const handleDeleteRsvpFromSite = (siteId: string, rsvpId: string) => {
+    setSites((prev) =>
+      prev.map((s) =>
+        s.id === siteId
+          ? {
+              ...s,
+              rsvps: s.rsvps.filter((r) => r.id !== rsvpId),
+            }
+          : s
+      )
+    );
+  };
+
+  // Admin: Clear all RSVPs for specific site
+  const handleClearSiteRsvps = (siteId: string) => {
+    if (window.confirm('Are you sure you want to clear all RSVPs for this site?')) {
+      setSites((prev) =>
+        prev.map((s) => (s.id === siteId ? { ...s, rsvps: [] } : s))
+      );
+    }
+  };
+
   // Navigation helpers
   const openGuestMode = (slug?: string) => {
     const targetSlug = slug || activeSite.slug;
@@ -215,17 +293,73 @@ export default function App() {
           data={guestSite.data}
           guestRsvps={guestSite.rsvps}
           onAddRsvp={handleAddRsvpToGuestSite}
-          onOpenBuilder={closeGuestMode}
+          onOpenBuilder={() => {
+            if (isAdminLoggedIn) {
+              closeGuestMode();
+            } else {
+              setIsLoginModalOpen(true);
+            }
+          }}
+          isAdminLoggedIn={isAdminLoggedIn}
+          onLogout={handleAdminLogout}
           isPublished={guestSite.isPublished}
           passwordProtected={guestSite.passwordProtected}
           sitePassword={guestSite.password}
           siteTitle={guestSite.title}
         />
+
+        {/* Admin Login Modal (if host triggers login from public guest page) */}
+        <AdminLoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onLoginSuccess={() => {
+            setIsAdminLoggedIn(true);
+            setIsLoginModalOpen(false);
+            closeGuestMode();
+          }}
+          savedUsername={adminCreds.username}
+          savedPasswordHash={adminCreds.passwordHash}
+          canCancel={true}
+        />
       </div>
     );
   }
 
-  // Admin Studio Mode
+  // If not logged in and on Admin page, show Admin Login Portal
+  if (!isAdminLoggedIn) {
+    return (
+      <div
+        className="w-full min-h-screen flex flex-col items-center justify-center p-4 font-montserrat relative select-none"
+        style={{
+          backgroundColor: activeSite.data.secondaryColor || '#F7F4EE',
+          backgroundImage: `radial-gradient(ellipse at 50% 15%, #FFFFFF 20%, ${activeSite.data.secondaryColor} 70%, #EDE6DA 100%)`,
+        }}
+      >
+        <AdminLoginModal
+          isOpen={true}
+          onClose={() => openGuestMode()}
+          onLoginSuccess={() => {
+            setIsAdminLoggedIn(true);
+          }}
+          savedUsername={adminCreds.username}
+          savedPasswordHash={adminCreds.passwordHash}
+          canCancel={true}
+        />
+
+        {/* Escape link for guests who landed on root */}
+        <div className="mt-4 text-center z-10">
+          <button
+            onClick={() => openGuestMode()}
+            className="text-xs text-stone-500 hover:text-stone-800 underline transition-colors cursor-pointer"
+          >
+            ← View Public Guest Invitation
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin Studio Mode (Authenticated)
   return (
     <div className="w-full h-screen flex flex-col bg-stone-100 overflow-hidden font-montserrat text-stone-900">
       {/* Top Bar Navigation (Following Top Bar Contract: 3 zones, single line) */}
@@ -311,13 +445,34 @@ export default function App() {
 
         {/* Zone 3: Primary Actions */}
         <div className="flex items-center gap-2">
+          {/* Admin All RSVPs Button */}
+          <button
+            onClick={() => setIsAdminRsvpModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors cursor-pointer"
+            title="View all guest RSVP responses across all public sites"
+          >
+            <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-600" />
+            <span>RSVPs ({totalAllRsvpsCount})</span>
+          </button>
+
           {/* Admin Sites Button */}
           <button
             onClick={() => setIsAdminSiteModalOpen(true)}
             className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 transition-colors cursor-pointer"
+            title="Create and manage public sites for guests"
           >
             <Shield className="w-3.5 h-3.5 text-stone-600" />
             <span>Admin Sites</span>
+          </button>
+
+          {/* Admin Credentials Button */}
+          <button
+            onClick={() => setIsAdminSecurityModalOpen(true)}
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/60 transition-colors cursor-pointer"
+            title="Manage admin login credentials"
+          >
+            <Key className="w-3.5 h-3.5 text-amber-700" />
+            <span>Admin Access</span>
           </button>
 
           {/* Public Guest View Link */}
@@ -337,6 +492,16 @@ export default function App() {
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>Publish &amp; Share</span>
+          </button>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleAdminLogout}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-stone-100 hover:bg-rose-50 hover:text-rose-700 text-stone-600 border border-stone-200 transition-colors cursor-pointer"
+            title="Logout from Admin Studio"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
@@ -405,6 +570,33 @@ export default function App() {
           setIsAdminSiteModalOpen(false);
           openGuestMode(slug);
         }}
+        onOpenRsvpsModal={() => {
+          setIsAdminSiteModalOpen(false);
+          setIsAdminRsvpModalOpen(true);
+        }}
+        onOpenSecurityModal={() => {
+          setIsAdminSiteModalOpen(false);
+          setIsAdminSecurityModalOpen(true);
+        }}
+      />
+
+      {/* Admin All RSVPs Response Management Dashboard Modal */}
+      <AdminRsvpDashboardModal
+        isOpen={isAdminRsvpModalOpen}
+        onClose={() => setIsAdminRsvpModalOpen(false)}
+        sites={sites}
+        activeSiteId={activeSite.id}
+        onDeleteRsvp={handleDeleteRsvpFromSite}
+        onClearSiteRsvps={handleClearSiteRsvps}
+      />
+
+      {/* Admin Security & Password Settings Modal */}
+      <AdminSecurityModal
+        isOpen={isAdminSecurityModalOpen}
+        onClose={() => setIsAdminSecurityModalOpen(false)}
+        currentUsername={adminCreds.username}
+        currentPassword={adminCreds.passwordHash}
+        onSaveCredentials={handleUpdateAdminCreds}
       />
     </div>
   );

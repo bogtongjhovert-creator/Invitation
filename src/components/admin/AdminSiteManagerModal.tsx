@@ -17,6 +17,8 @@ import {
   Users,
   Eye,
   ShieldCheck,
+  Heart,
+  Key,
 } from 'lucide-react';
 
 interface AdminSiteManagerModalProps {
@@ -30,6 +32,8 @@ interface AdminSiteManagerModalProps {
   onUpdateSiteConfig: (siteId: string, updates: Partial<PublicSite>) => void;
   onDeleteSite: (siteId: string) => void;
   onOpenPublicSite: (slug: string) => void;
+  onOpenRsvpsModal?: (siteId?: string) => void;
+  onOpenSecurityModal?: () => void;
 }
 
 export const AdminSiteManagerModal: React.FC<AdminSiteManagerModalProps> = ({
@@ -43,6 +47,8 @@ export const AdminSiteManagerModal: React.FC<AdminSiteManagerModalProps> = ({
   onUpdateSiteConfig,
   onDeleteSite,
   onOpenPublicSite,
+  onOpenRsvpsModal,
+  onOpenSecurityModal,
 }) => {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
@@ -173,13 +179,34 @@ export const AdminSiteManagerModal: React.FC<AdminSiteManagerModalProps> = ({
           </div>
 
           {!isCreatingNew && (
-            <button
-              onClick={() => setIsCreatingNew(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create New Site</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {onOpenSecurityModal && (
+                <button
+                  onClick={() => onOpenSecurityModal()}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Update admin login username and password"
+                >
+                  <Key className="w-3.5 h-3.5 text-amber-700" />
+                  <span className="hidden sm:inline">Credentials</span>
+                </button>
+              )}
+              {onOpenRsvpsModal && (
+                <button
+                  onClick={() => onOpenRsvpsModal()}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-600" />
+                  <span>All RSVPs</span>
+                </button>
+              )}
+              <button
+                onClick={() => setIsCreatingNew(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Site</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -406,10 +433,21 @@ export const AdminSiteManagerModal: React.FC<AdminSiteManagerModalProps> = ({
                   {/* Metrics and Actions Bar */}
                   <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
                     <div className="flex items-center gap-4 text-stone-500 text-[11px]">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3 text-stone-400" />
-                        <span>{site.rsvps.length} RSVPs</span>
-                      </span>
+                      {onOpenRsvpsModal ? (
+                        <button
+                          onClick={() => onOpenRsvpsModal(site.id)}
+                          className="flex items-center gap-1 text-rose-700 hover:text-rose-900 font-semibold cursor-pointer"
+                          title="Click to view RSVPs for this site"
+                        >
+                          <Heart className="w-3 h-3 fill-rose-500/20 text-rose-600" />
+                          <span>{site.rsvps.length} RSVPs</span>
+                        </button>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-stone-400" />
+                          <span>{site.rsvps.length} RSVPs</span>
+                        </span>
+                      )}
                       <span>
                         Theme: <strong className="text-stone-700 capitalize">{site.data.templateId.replace('-', ' ')}</strong>
                       </span>
