@@ -3,18 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { InvitationData, GuestRsvp } from './types/invitation';
+import React, { useState, useEffect, useMemo } from 'react';
+import { InvitationData, GuestRsvp, PublicSite } from './types/invitation';
 import { INITIAL_INVITATION_DATA } from './utils/templates';
 import { BuilderSidebar } from './components/builder/BuilderSidebar';
 import { PreviewFrame } from './components/builder/PreviewFrame';
 import { PublicGuestView } from './components/public/PublicGuestView';
 import { ShareModal } from './components/builder/ShareModal';
+import { AdminSiteManagerModal } from './components/admin/AdminSiteManagerModal';
 import { SacredCrossIcon } from './components/common/DecorativeIcons';
-import { Eye, Edit3, Share2, Globe } from 'lucide-react';
+import { Eye, Edit3, Share2, Globe, Shield, CheckCircle2, AlertCircle } from 'lucide-react';
 
-const STORAGE_KEY_DATA = 'blessed_invitation_data_v1';
-const STORAGE_KEY_RSVPS = 'blessed_invitation_rsvps_v1';
+const STORAGE_KEY_SITES = 'blessed_sites_v2';
 
 const INITIAL_RSVPS: GuestRsvp[] = [
   {
@@ -35,92 +35,176 @@ const INITIAL_RSVPS: GuestRsvp[] = [
   },
 ];
 
+const DEFAULT_SITE_1: PublicSite = {
+  id: 'site_liam_1',
+  slug: 'liam-alexander',
+  title: "Liam Alexander's Holy Baptism & 1st Birthday",
+  isPublished: true,
+  publishedAt: 'Oct 5, 2026',
+  createdAt: 'Oct 1, 2026',
+  viewCount: 142,
+  allowGuestRsvp: true,
+  data: INITIAL_INVITATION_DATA,
+  rsvps: INITIAL_RSVPS,
+};
+
 export default function App() {
-  const [data, setData] = useState<InvitationData>(() => {
+  // All public sites managed by the admin
+  const [sites, setSites] = useState<PublicSite[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
+      const saved = localStorage.getItem(STORAGE_KEY_SITES);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // Fallback
     }
-    return INITIAL_INVITATION_DATA;
+    return [DEFAULT_SITE_1];
   });
 
-  const [guestRsvps, setGuestRsvps] = useState<GuestRsvp[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_RSVPS);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_RSVPS;
+  const [activeSiteId, setActiveSiteId] = useState<string>(() => {
+    return sites[0]?.id || DEFAULT_SITE_1.id;
   });
 
-  // Check if URL has ?view=guest
-  const [isGuestMode, setIsGuestMode] = useState<boolean>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('view') === 'guest';
-  });
+  // URL state checking
+  const [currentUrlParams, setCurrentUrlParams] = useState<URLSearchParams>(
+    () => new URLSearchParams(window.location.search)
+  );
 
-  // Sync with browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      setIsGuestMode(params.get('view') === 'guest');
+      setCurrentUrlParams(new URLSearchParams(window.location.search));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const openGuestMode = () => {
-    setIsGuestMode(true);
-    const newUrl = `${window.location.pathname}?view=guest`;
-    window.history.pushState({ view: 'guest' }, '', newUrl);
-  };
+  // Save sites to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_SITES, JSON.stringify(sites));
+    } catch {
+      // Storage error
+    }
+  }, [sites]);
 
-  const closeGuestMode = () => {
-    setIsGuestMode(false);
-    window.history.pushState({}, '', window.location.pathname);
-  };
+  // Determine active site for editing or viewing
+  const activeSite = useMemo(() => {
+    return sites.find((s) => s.id === activeSiteId) || sites[0] || DEFAULT_SITE_1;
+  }, [sites, activeSiteId]);
+
+  // Determine site for guest viewing
+  const guestSite = useMemo(() => {
+    const slugParam = currentUrlParams.get('site');
+    if (slugParam) {
+      const matched = sites.find((s) => s.slug === slugParam.toLowerCase().trim());
+      if (matched) return matched;
+    }
+    return activeSite;
+  }, [sites, currentUrlParams, activeSite]);
+
+  const isGuestMode = currentUrlParams.get('view') === 'guest';
 
   // Mobile layout tab: 'editor' vs 'preview'
   const [mobileActiveView, setMobileActiveView] = useState<'editor' | 'preview'>('preview');
 
-  // Share Modal
+  // Modals
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAdminSiteModalOpen, setIsAdminSiteModalOpen] = useState(false);
 
-  // Sync state to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(data));
-    } catch {
-      // Storage error
-    }
-  }, [data]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_RSVPS, JSON.stringify(guestRsvps));
-    } catch {
-      // Storage error
-    }
-  }, [guestRsvps]);
-
-  const handleAddRsvp = (newRsvp: GuestRsvp) => {
-    setGuestRsvps((prev) => {
-      const filtered = prev.filter((r) => r.id !== newRsvp.id);
-      return [newRsvp, ...filtered];
-    });
+  // Update active site data from Builder
+  const handleUpdateActiveSiteData = (updatedData: InvitationData) => {
+    setSites((prevSites) =>
+      prevSites.map((site) =>
+        site.id === activeSite.id
+          ? {
+              ...site,
+              title: `${updatedData.babyName}'s Holy Baptism & 1st Birthday`,
+              data: updatedData,
+            }
+          : site
+      )
+    );
   };
 
-  const handleClearRsvps = () => {
-    if (window.confirm('Are you sure you want to clear all guest RSVP responses?')) {
-      setGuestRsvps([]);
+  // RSVP submission (by guest on public site or preview)
+  const handleAddRsvpToGuestSite = (newRsvp: GuestRsvp) => {
+    setSites((prevSites) =>
+      prevSites.map((site) =>
+        site.id === guestSite.id
+          ? {
+              ...site,
+              rsvps: [newRsvp, ...site.rsvps.filter((r) => r.id !== newRsvp.id)],
+            }
+          : site
+      )
+    );
+  };
+
+  // Clear RSVPs on active site
+  const handleClearActiveSiteRsvps = () => {
+    if (window.confirm('Are you sure you want to clear all guest RSVP responses for this site?')) {
+      setSites((prevSites) =>
+        prevSites.map((site) =>
+          site.id === activeSite.id
+            ? {
+                ...site,
+                rsvps: [],
+              }
+            : site
+        )
+      );
     }
+  };
+
+  // Admin: Create new site
+  const handleCreateNewSite = (newSite: PublicSite) => {
+    setSites((prev) => [newSite, ...prev]);
+    setActiveSiteId(newSite.id);
+  };
+
+  // Admin: Toggle publish status
+  const handleTogglePublish = (siteId: string) => {
+    setSites((prev) =>
+      prev.map((site) =>
+        site.id === siteId
+          ? {
+              ...site,
+              isPublished: !site.isPublished,
+              publishedAt: !site.isPublished
+                ? new Date().toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : site.publishedAt,
+            }
+          : site
+      )
+    );
+  };
+
+  // Admin: Delete site
+  const handleDeleteSite = (siteId: string) => {
+    const remaining = sites.filter((s) => s.id !== siteId);
+    if (remaining.length > 0) {
+      setSites(remaining);
+      setActiveSiteId(remaining[0].id);
+    }
+  };
+
+  // Navigation helpers
+  const openGuestMode = (slug?: string) => {
+    const targetSlug = slug || activeSite.slug;
+    const newUrl = `${window.location.pathname}?site=${targetSlug}&view=guest`;
+    window.history.pushState({ view: 'guest' }, '', newUrl);
+    setCurrentUrlParams(new URLSearchParams(`?site=${targetSlug}&view=guest`));
+  };
+
+  const closeGuestMode = () => {
+    window.history.pushState({}, '', window.location.pathname);
+    setCurrentUrlParams(new URLSearchParams(''));
   };
 
   // If in pure Public Guest View mode, render dedicated distraction-free invitation
@@ -128,33 +212,38 @@ export default function App() {
     return (
       <div className="w-full min-h-screen">
         <PublicGuestView
-          data={data}
-          guestRsvps={guestRsvps}
-          onAddRsvp={handleAddRsvp}
+          data={guestSite.data}
+          guestRsvps={guestSite.rsvps}
+          onAddRsvp={handleAddRsvpToGuestSite}
           onOpenBuilder={closeGuestMode}
+          isPublished={guestSite.isPublished}
+          passwordProtected={guestSite.passwordProtected}
+          sitePassword={guestSite.password}
+          siteTitle={guestSite.title}
         />
       </div>
     );
   }
 
+  // Admin Studio Mode
   return (
     <div className="w-full h-screen flex flex-col bg-stone-100 overflow-hidden font-montserrat text-stone-900">
       {/* Top Bar Navigation (Following Top Bar Contract: 3 zones, single line) */}
       <header className="h-14 bg-white border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-        {/* Zone 1: Single text element wordmark with delicate cross icon */}
-        <div className="flex items-center gap-2">
+        {/* Zone 1: Brand title with delicate sacred cross icon */}
+        <div className="flex items-center gap-2.5">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${data.accentColor}20` }}
+            style={{ backgroundColor: `${activeSite.data.accentColor}20` }}
           >
-            <SacredCrossIcon color={data.accentColor} className="w-3.5 h-4.5" />
+            <SacredCrossIcon color={activeSite.data.accentColor} className="w-3.5 h-4.5" />
           </div>
           <h1 className="text-sm sm:text-base font-bold tracking-tight text-stone-900 truncate">
             Blessed Milestones
           </h1>
         </div>
 
-        {/* Zone 2: Navigation Links / Segmented View Controls on Mobile */}
+        {/* Zone 2: Navigation Links / Admin Controls & Mobile Segmented View */}
         <div className="md:hidden flex items-center bg-stone-100 p-0.5 rounded-xl text-xs">
           <button
             onClick={() => setMobileActiveView('editor')}
@@ -181,28 +270,70 @@ export default function App() {
         </div>
 
         <nav className="hidden md:flex items-center gap-3 text-xs font-medium text-stone-600">
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-semibold text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Public Invitation Live</span>
-          </span>
-          <span className="text-stone-400">·</span>
-          <span className="text-stone-500">{data.babyName}&apos;s Holy Baptism &amp; 1st Birthday</span>
+          {/* Admin Multi-Site Manager Trigger */}
+          <button
+            onClick={() => setIsAdminSiteModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 transition-colors font-semibold cursor-pointer"
+          >
+            <Globe className="w-3.5 h-3.5 text-stone-600" />
+            <span>Sites ({sites.length})</span>
+            <span className="text-[10px] text-stone-400 font-mono">/{activeSite.slug}</span>
+          </button>
+
+          <span className="text-stone-300">·</span>
+
+          {/* Quick Publish Toggle Button */}
+          <button
+            onClick={() => handleTogglePublish(activeSite.id)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
+              activeSite.isPublished
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-amber-50 text-amber-800 border-amber-200'
+            }`}
+            title="Click to toggle publish status"
+          >
+            {activeSite.isPublished ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Public Site: Live</span>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-3 h-3 text-amber-600" />
+                <span>Site: Draft (Offline)</span>
+              </>
+            )}
+          </button>
+
+          <span className="text-stone-300">·</span>
+          <span className="text-stone-500 truncate max-w-xs">{activeSite.data.babyName}&apos;s Celebration</span>
         </nav>
 
         {/* Zone 3: Primary Actions */}
         <div className="flex items-center gap-2">
+          {/* Admin Sites Button */}
           <button
-            onClick={openGuestMode}
+            onClick={() => setIsAdminSiteModalOpen(true)}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 transition-colors cursor-pointer"
+          >
+            <Shield className="w-3.5 h-3.5 text-stone-600" />
+            <span>Admin Sites</span>
+          </button>
+
+          {/* Public Guest View Link */}
+          <button
+            onClick={() => openGuestMode()}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 transition-colors cursor-pointer"
           >
-            <Globe className="w-3.5 h-3.5 text-stone-500" />
+            <Eye className="w-3.5 h-3.5 text-stone-600" />
             <span>View as Guest</span>
           </button>
 
+          {/* Publish & Share Button */}
           <button
             onClick={() => setIsShareModalOpen(true)}
             className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl text-white shadow-xs transition-all hover:opacity-95 active:scale-95 cursor-pointer"
-            style={{ backgroundColor: data.accentColor }}
+            style={{ backgroundColor: activeSite.data.accentColor }}
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>Publish &amp; Share</span>
@@ -219,11 +350,11 @@ export default function App() {
           }`}
         >
           <BuilderSidebar
-            data={data}
-            onChange={setData}
-            guestRsvps={guestRsvps}
+            data={activeSite.data}
+            onChange={handleUpdateActiveSiteData}
+            guestRsvps={activeSite.rsvps}
             onOpenShare={() => setIsShareModalOpen(true)}
-            onClearRsvps={handleClearRsvps}
+            onClearRsvps={handleClearActiveSiteRsvps}
           />
         </aside>
 
@@ -234,11 +365,11 @@ export default function App() {
           }`}
         >
           <PreviewFrame
-            data={data}
-            guestRsvps={guestRsvps}
-            onAddRsvp={handleAddRsvp}
+            data={activeSite.data}
+            guestRsvps={activeSite.rsvps}
+            onAddRsvp={handleAddRsvpToGuestSite}
             isGuestMode={false}
-            onToggleGuestMode={openGuestMode}
+            onToggleGuestMode={() => openGuestMode()}
           />
         </section>
       </main>
@@ -247,8 +378,33 @@ export default function App() {
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
-        data={data}
-        onOpenGuestView={openGuestMode}
+        data={activeSite.data}
+        siteSlug={activeSite.slug}
+        onOpenGuestView={() => openGuestMode()}
+      />
+
+      {/* Admin Multi-Site Manager Console Modal */}
+      <AdminSiteManagerModal
+        isOpen={isAdminSiteModalOpen}
+        onClose={() => setIsAdminSiteModalOpen(false)}
+        sites={sites}
+        activeSiteId={activeSite.id}
+        onSelectSite={(id) => {
+          setActiveSiteId(id);
+          setIsAdminSiteModalOpen(false);
+        }}
+        onCreateSite={handleCreateNewSite}
+        onTogglePublish={handleTogglePublish}
+        onUpdateSiteConfig={(id, updates) => {
+          setSites((prev) =>
+            prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+          );
+        }}
+        onDeleteSite={handleDeleteSite}
+        onOpenPublicSite={(slug) => {
+          setIsAdminSiteModalOpen(false);
+          openGuestMode(slug);
+        }}
       />
     </div>
   );

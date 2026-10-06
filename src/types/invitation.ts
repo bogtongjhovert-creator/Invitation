@@ -60,6 +60,21 @@ export interface TemplateStyle {
   };
 }
 
+export interface PublicSite {
+  id: string;
+  slug: string;
+  title: string;
+  isPublished: boolean;
+  publishedAt?: string;
+  createdAt: string;
+  viewCount: number;
+  allowGuestRsvp: boolean;
+  passwordProtected?: boolean;
+  password?: string;
+  data: InvitationData;
+  rsvps: GuestRsvp[];
+}
+
 export interface InvitationData {
   // Baby details
   babyName: string;

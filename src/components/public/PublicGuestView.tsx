@@ -11,6 +11,10 @@ interface PublicGuestViewProps {
   guestRsvps: GuestRsvp[];
   onAddRsvp: (rsvp: GuestRsvp) => void;
   onOpenBuilder?: () => void;
+  isPublished?: boolean;
+  passwordProtected?: boolean;
+  sitePassword?: string;
+  siteTitle?: string;
 }
 
 export const PublicGuestView: React.FC<PublicGuestViewProps> = ({
@@ -18,8 +22,15 @@ export const PublicGuestView: React.FC<PublicGuestViewProps> = ({
   guestRsvps,
   onAddRsvp,
   onOpenBuilder,
+  isPublished = true,
+  passwordProtected = false,
+  sitePassword,
+  siteTitle,
 }) => {
   const [isCoverOpen, setIsCoverOpen] = useState(false);
+  const [unlocked, setUnlocked] = useState(!passwordProtected);
+  const [enteredPassword, setEnteredPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
 
   const handleOpenCover = () => {
     setIsCoverOpen(true);
@@ -30,6 +41,16 @@ export const PublicGuestView: React.FC<PublicGuestViewProps> = ({
 
   const handleResetCover = () => {
     setIsCoverOpen(false);
+  };
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sitePassword || enteredPassword === sitePassword) {
+      setUnlocked(true);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
   };
 
   return (
@@ -67,22 +88,106 @@ export const PublicGuestView: React.FC<PublicGuestViewProps> = ({
           backgroundColor: data.primaryColor || '#FFFDF8',
         }}
       >
-        {/* Full-Screen Cover Screen */}
-        <CoverScreen
-          data={data}
-          isOpen={isCoverOpen}
-          onOpen={handleOpenCover}
-        />
+        {!isPublished ? (
+          /* Unpublished / Draft Notice for Guests */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#FFFDF8] font-montserrat">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-sm"
+              style={{ background: `${data.accentColor}20` }}
+            >
+              <SacredCrossIcon color={data.accentColor} className="w-8 h-8" />
+            </div>
 
-        {/* Main Sacred & Joyful Invitation Content */}
-        <div className="w-full flex-1">
-          <InvitationView
-            data={data}
-            onResetCover={handleResetCover}
-            guestRsvps={guestRsvps}
-            onAddRsvp={onAddRsvp}
-          />
-        </div>
+            <span className="text-[10px] tracking-[0.25em] uppercase font-bold text-stone-400 mb-2">
+              BLESSED CELEBRATION
+            </span>
+
+            <h2 className="font-cormorant text-3xl font-bold text-stone-800 mb-2">
+              Invitation Coming Soon
+            </h2>
+
+            <p className="text-xs text-stone-600 leading-relaxed max-w-xs mb-6">
+              The Holy Baptism &amp; 1st Birthday invitation for{' '}
+              <strong className="text-stone-800">{data.babyName}</strong> is currently being prepared with love by the family. Please check back shortly!
+            </p>
+
+            <button
+              onClick={() => window.location.reload()}
+              className="py-2.5 px-6 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors"
+            >
+              Check Again
+            </button>
+
+            {onOpenBuilder && (
+              <button
+                onClick={onOpenBuilder}
+                className="mt-8 text-[11px] text-amber-800 hover:text-amber-900 underline flex items-center gap-1"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>Admin? Publish this site in Studio</span>
+              </button>
+            )}
+          </div>
+        ) : !unlocked ? (
+          /* Password Protection Gate */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#FFFDF8] font-montserrat">
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mb-4 shadow-sm"
+              style={{ background: `${data.accentColor}20` }}
+            >
+              <SacredCrossIcon color={data.accentColor} className="w-7 h-7" />
+            </div>
+
+            <h2 className="font-cormorant text-2xl font-bold text-stone-800 mb-1">
+              Private Family Invitation
+            </h2>
+
+            <p className="text-xs text-stone-500 mb-4">
+              Please enter the passcode provided by {data.babyName}&apos;s family to view the celebration details.
+            </p>
+
+            <form onSubmit={handlePasswordSubmit} className="w-full max-w-xs space-y-3">
+              <input
+                type="password"
+                required
+                placeholder="Enter invitation passcode"
+                value={enteredPassword}
+                onChange={(e) => setEnteredPassword(e.target.value)}
+                className="w-full px-4 py-2.5 text-center text-sm bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500/20"
+              />
+              {passwordError && (
+                <p className="text-xs text-rose-600">Incorrect passcode. Please check with the family.</p>
+              )}
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold text-white transition-opacity"
+                style={{ backgroundColor: data.accentColor }}
+              >
+                Enter Invitation
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* Live Published Guest Experience */
+          <>
+            {/* Full-Screen Cover Screen */}
+            <CoverScreen
+              data={data}
+              isOpen={isCoverOpen}
+              onOpen={handleOpenCover}
+            />
+
+            {/* Main Sacred & Joyful Invitation Content */}
+            <div className="w-full flex-1">
+              <InvitationView
+                data={data}
+                onResetCover={handleResetCover}
+                guestRsvps={guestRsvps}
+                onAddRsvp={onAddRsvp}
+              />
+            </div>
+          </>
+        )}
 
         {/* Subtle, Dignified Footer for Public Guests */}
         <div className="py-4 px-6 text-center border-t border-stone-200/50 bg-stone-50/60 font-montserrat text-[11px] text-stone-400">
@@ -102,7 +207,7 @@ export const PublicGuestView: React.FC<PublicGuestViewProps> = ({
                 className="text-[10px] text-stone-400 hover:text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
               >
                 <Edit3 className="w-2.5 h-2.5" />
-                <span>Host? Switch to Invitation Studio</span>
+                <span>Admin / Host Studio</span>
               </button>
             </div>
           )}

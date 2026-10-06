@@ -6,6 +6,7 @@ interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: InvitationData;
+  siteSlug?: string;
   onOpenGuestView?: () => void;
 }
 
@@ -13,16 +14,19 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   isOpen,
   onClose,
   data,
+  siteSlug,
   onOpenGuestView,
 }) => {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
-  // Clean guest URL pointing explicitly to ?view=guest
+  // Clean guest URL pointing explicitly to ?site=slug&view=guest
   const origin = window.location.origin;
   const pathname = window.location.pathname;
-  const guestUrl = `${origin}${pathname}?view=guest`;
+  const guestUrl = siteSlug
+    ? `${origin}${pathname}?site=${siteSlug}&view=guest`
+    : `${origin}${pathname}?view=guest`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(guestUrl);
