@@ -150,11 +150,11 @@ export const BuilderSidebar: React.FC<BuilderSidebarProps> = ({
         </div>
         <button
           onClick={onOpenShare}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold text-white flex items-center gap-1.5 shadow-xs transition-opacity hover:opacity-90"
+          className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white flex items-center gap-1.5 shadow-xs transition-all hover:opacity-95 active:scale-95 cursor-pointer"
           style={{ backgroundColor: data.accentColor }}
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span>Share</span>
+          <span>Publish &amp; Link</span>
         </button>
       </div>
 

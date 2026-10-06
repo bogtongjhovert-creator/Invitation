@@ -34,34 +34,6 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
     setIsCoverOpen(false);
   };
 
-  // If in pure guest view mode, render full-bleed responsive screen
-  if (isGuestMode) {
-    return (
-      <div className="relative w-full min-h-screen bg-stone-900 flex justify-center">
-        {/* Floating exit guest mode toggle bar */}
-        <div className="fixed top-3 left-4 z-50">
-          <button
-            onClick={onToggleGuestMode}
-            className="px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-stone-800 text-xs font-montserrat font-medium shadow-md hover:bg-white flex items-center gap-1.5 transition-all"
-          >
-            <span>← Back to Builder Studio</span>
-          </button>
-        </div>
-
-        {/* Guest View Invitation Container (Centered 420px on desktop, fluid on mobile) */}
-        <div className="w-full max-w-[430px] min-h-screen shadow-2xl relative bg-white">
-          <CoverScreen data={data} isOpen={isCoverOpen} onOpen={handleOpenCover} />
-          <InvitationView
-            data={data}
-            onResetCover={handleResetCover}
-            guestRsvps={guestRsvps}
-            onAddRsvp={onAddRsvp}
-          />
-        </div>
-      </div>
-    );
-  }
-
   // Builder Studio Preview Viewport
   return (
     <div className="flex-1 h-full flex flex-col bg-stone-100/90 relative overflow-hidden select-none">
@@ -98,7 +70,7 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
           {isCoverOpen && (
             <button
               onClick={handleResetCover}
-              className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg flex items-center gap-1 transition-colors"
+              className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
               title="Show Cover Screen again"
             >
               <RotateCcw className="w-3 h-3" />
@@ -108,10 +80,10 @@ export const PreviewFrame: React.FC<PreviewFrameProps> = ({
 
           <button
             onClick={onToggleGuestMode}
-            className="px-3 py-1.5 text-xs font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1.5 transition-all shadow-xs"
+            className="px-3.5 py-1.5 text-xs font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
-            <span>Preview as Guest</span>
+            <span>Open Public Guest View</span>
           </button>
         </div>
       </div>
