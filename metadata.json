@@ -1,0 +1,6 @@
+{
+  "name": "Blessed Milestones - Baptism & 1st Birthday Digital Invitation",
+  "description": "An elegant, interactive digital invitation and builder celebrating a child's Holy Baptism and First Birthday with sacred faith and joyful childhood milestones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
